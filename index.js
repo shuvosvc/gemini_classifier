@@ -537,7 +537,7 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
         // Validate normal_or_not if provided by user
         const allowedNormalOrNot = ['Normal', 'Abnormal', 'null', null, '']; // Include string 'null' and empty string for flexibility
         if (normal_or_not !== undefined && !allowedNormalOrNot.includes(normal_or_not)) {
-            return res.status(400).json({ error: 'Invalid normal_or_not value. Must be "Normal", "Abnormal", "Not Applicable", or empty.' });
+            return res.status(400).json({ error: 'Invalid normal_or_not value. Must be "Normal", "Abnormal"or empty.' });
         }
         // Convert user provided normal_or_not to a standardized format if it's a string 'null' or empty
         if (normal_or_not === 'null' || normal_or_not === '') {
