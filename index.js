@@ -239,9 +239,9 @@ app.post('/uploadPrescription', upload.array('image'), async (req, res) => {
         if (!member_id || !Number.isInteger(+member_id) || +member_id <= 0) {
             return res.status(400).json({ error: 'Invalid or missing member_id' });
         }
-        if (!title || typeof title !== 'string' || title.trim().length === 0) {
-            return res.status(400).json({ error: 'Missing or invalid prescription title' });
-        }
+        // if (!title || typeof title !== 'string' || title.trim().length === 0) {
+        //     return res.status(400).json({ error: 'Missing or invalid prescription title' });
+        // }
 
         // Optional validations (still useful for direct user input)
         if (department !== undefined && typeof department !== 'string') {
@@ -325,11 +325,16 @@ app.post('/uploadPrescription', upload.array('image'), async (req, res) => {
         }
 
         // Build dynamic INSERT query for the prescriptions table
-        const fields = ['user_id', 'title'];
-        const values = [member_id, title];
-        const placeholders = ['$1', '$2'];
-        let idx = 3;
+        const fields = ['user_id'];
+        const values = [member_id];
+        const placeholders = ['$1'];
+        let idx = 2;
 
+        if (title !== undefined) {
+            fields.push('title');
+            values.push(title);
+            placeholders.push(`$${idx++}`);
+        }
         if (department !== undefined) {
             fields.push('department');
             values.push(department);
