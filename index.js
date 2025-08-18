@@ -5,8 +5,8 @@ const path = require('path');
 const jwt = require('jsonwebtoken');
 const fs = require('fs/promises');
 const database = require('./utils/connection');
-const { port, jwtSecret , geminiApiKey} = require('./config/ApplicationSettings');
-const { authintication,authfilereq} = require('./utils/common'); // Import the utility function
+const { port, jwtSecret, geminiApiKey } = require('./config/ApplicationSettings');
+const { authintication, authfilereq } = require('./utils/common'); // Import the utility function
 const { log } = require('console');
 
 
@@ -26,15 +26,15 @@ const cors = require('cors');
 app.use(cors());
 
 
-app.use('/uploads',  express.static(path.join(__dirname, 'uploads')));
-app.use('/profiles',  express.static(path.join(__dirname, 'profiles')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/profiles', express.static(path.join(__dirname, 'profiles')));
 
 // app.use('/uploads', authfilereq, express.static(path.join(__dirname, 'uploads')));
 // app.use('/profiles', authfilereq, express.static(path.join(__dirname, 'profiles')));
 
 
 app.get("/", (_, res) => {
-  res.send("🟢 Server is alive");
+    res.send("🟢 Server is alive");
 });
 
 
@@ -109,7 +109,7 @@ const processImages = async (files, userId) => {
         const colorFilename = `${baseName}-color-${userId}-${currentDate}.png`;
         const thumbnailFilename = `${baseName}-thumbnail-${userId}-${currentDate}.png`;
 
-        
+
 
         processedImages.push({
             originalBufferForAI: imageBuffer,    // Original buffer for Gemini
@@ -166,12 +166,12 @@ const classifyDocumentAndExtractData = async (imageBuffer, mimeType) => {
 
 
         const contents = [{
-  role: 'user',
-  parts: [
-    fileToGenerativePart(imageBuffer, mimeType), // returns { inlineData: {...} }
-    { text: prompt }
-  ]
-}];
+            role: 'user',
+            parts: [
+                fileToGenerativePart(imageBuffer, mimeType), // returns { inlineData: {...} }
+                { text: prompt }
+            ]
+        }];
 
 
         const result = await model.generateContent({
@@ -388,9 +388,9 @@ app.post('/uploadPrescription', upload.array('image'), async (req, res) => {
             message: 'Prescription uploaded successfully.',
             prescriptionId,
             autoFilledData: {
-                department: department|| null,
-                doctor_name: doctor_name|| null,
-                visited_date: visited_date|| null
+                department: department || null,
+                doctor_name: doctor_name || null,
+                visited_date: visited_date || null
             }
         });
 
@@ -517,6 +517,7 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
         let {
             accessToken,
             member_id,
+            prescription_id,
             test_name,       // User provided, will be auto-filled if undefined and extracted
             deliveryDate,    // User provided, will be auto-filled if undefined and extracted
             normal_or_not,   // User provided, will be auto-filled if undefined and extracted
@@ -528,11 +529,33 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
         if (!member_id || !Number.isInteger(+member_id) || +member_id <= 0) {
             return res.status(400).json({ error: 'Invalid or missing member_id' });
         }
-     
-    // Validate required title
-    if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
-      return res.status(400).json({ error: 'Invalid report title' });
-    }
+
+        // Validate required title
+        if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
+            return res.status(400).json({ error: 'Invalid report title' });
+        }
+
+
+        // Optional validations
+        if (prescription_id !== undefined && (!Number.isInteger(+prescription_id) || +prescription_id <= 0)) {
+            return res.status(400).json({ error: 'Invalid prescription_id' });
+        }
+
+        if (prescription_id !== undefined) {
+            const prescription = await connection.queryOne(
+                `SELECT user_id FROM prescriptions WHERE id = $1 AND deleted = false`,
+                [prescription_id]
+            );
+
+            if (!prescription) {
+                return res.status(404).json({ error: 'Prescription not found.' });
+            }
+
+            if (prescription.user_id !== +member_id) {
+                return res.status(403).json({ error: 'Unauthorized. Prescription does not belong to this member.' });
+            }
+        }
+
 
         // Optional validations for report-specific fields
         if (test_name !== undefined && typeof test_name !== 'string') {
@@ -626,6 +649,13 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
         const placeholders = ['$1', '$2'];
         let idx = 3;
 
+
+        if (prescription_id !== undefined) {
+            fields.push('prescription_id');
+            values.push(prescription_id);
+            placeholders.push(`$${idx++}`);
+        }
+
         if (test_name !== undefined) {
             fields.push('test_name');
             values.push(test_name);
@@ -676,9 +706,9 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
             message: 'Report uploaded successfully.',
             reportId,
             autoFilledData: {
-                test_name: test_name||null,
-                deliveryDate: deliveryDate||null,
-                normal_or_not: normal_or_not||null
+                test_name: test_name || null,
+                deliveryDate: deliveryDate || null,
+                normal_or_not: normal_or_not || null
             }
         });
 
@@ -855,153 +885,153 @@ app.post('/appendReportImages', upload.array('image'), async (req, res) => {
 
 
 app.get('/getSharedDocs', async (req, res) => {
-  const { token } = req.query;
+    const { token } = req.query;
 
-  if (!token || typeof token !== 'string') {
-    return res.status(400).json({ error: 'Token is required' });
-  }
-
-  const connection = await database.getConnection();
-  try {
-    // Step 1: Validate token
-    const tokenInfo = await connection.queryOne(
-      `SELECT user_id, expires_at FROM token WHERE token = $1`,
-      [token]
-    );
-
-    if (!tokenInfo) {
-      return res.status(403).json({ error: 'Invalid token' });
+    if (!token || typeof token !== 'string') {
+        return res.status(400).json({ error: 'Token is required' });
     }
 
-    const { user_id, expires_at } = tokenInfo;
-    const now = new Date();
-    const expiry = new Date(expires_at);
+    const connection = await database.getConnection();
+    try {
+        // Step 1: Validate token
+        const tokenInfo = await connection.queryOne(
+            `SELECT user_id, expires_at FROM token WHERE token = $1`,
+            [token]
+        );
 
-    if (expiry < now) {
-      return res.status(403).json({ error: 'Token has expired' });
-    }
+        if (!tokenInfo) {
+            return res.status(403).json({ error: 'Invalid token' });
+        }
 
-    const expiresInSeconds = Math.floor((expiry.getTime() - now.getTime()) / 1000);
-    if (expiresInSeconds <= 0) {
-      return res.status(403).json({ error: 'Token has expired' });
-    }
+        const { user_id, expires_at } = tokenInfo;
+        const now = new Date();
+        const expiry = new Date(expires_at);
 
-    // Step 2: Generate JWT for file access
-    const fileAccessToken = jwt.sign({ userId: user_id }, jwtSecret, {
-      expiresIn: expiresInSeconds
-    });
+        if (expiry < now) {
+            return res.status(403).json({ error: 'Token has expired' });
+        }
 
-    // Step 3: Fetch shared prescriptions
-    const prescriptions = await connection.query(
-      `SELECT id, title, department, doctor_name, visited_date, created_at
+        const expiresInSeconds = Math.floor((expiry.getTime() - now.getTime()) / 1000);
+        if (expiresInSeconds <= 0) {
+            return res.status(403).json({ error: 'Token has expired' });
+        }
+
+        // Step 2: Generate JWT for file access
+        const fileAccessToken = jwt.sign({ userId: user_id }, jwtSecret, {
+            expiresIn: expiresInSeconds
+        });
+
+        // Step 3: Fetch shared prescriptions
+        const prescriptions = await connection.query(
+            `SELECT id, title, department, doctor_name, visited_date, created_at
        FROM prescriptions
        WHERE user_id = $1 AND shared = true AND deleted = false
        ORDER BY created_at DESC`,
-      [user_id]
-    );
+            [user_id]
+        );
 
-    const prescriptionIds = prescriptions.map(p => p.id);
+        const prescriptionIds = prescriptions.map(p => p.id);
 
-    // Step 4: Fetch prescription images
-    const prescriptionImages = await connection.query(
-      `SELECT prescription_id, id as prescription_img_id, resiged, thumb
+        // Step 4: Fetch prescription images
+        const prescriptionImages = await connection.query(
+            `SELECT prescription_id, id as prescription_img_id, resiged, thumb
        FROM prescription_images
        WHERE prescription_id = ANY($1::int[]) AND deleted = false
        ORDER BY created_at ASC`,
-      [prescriptionIds]
-    );
+            [prescriptionIds]
+        );
 
-    const prescriptionImageMap = {};
-    for (const img of prescriptionImages) {
-      if (!prescriptionImageMap[img.prescription_id]) prescriptionImageMap[img.prescription_id] = [];
-      prescriptionImageMap[img.prescription_id].push(img);
-    }
+        const prescriptionImageMap = {};
+        for (const img of prescriptionImages) {
+            if (!prescriptionImageMap[img.prescription_id]) prescriptionImageMap[img.prescription_id] = [];
+            prescriptionImageMap[img.prescription_id].push(img);
+        }
 
-    // Step 5: Fetch shared reports (with prescription)
-    const reports = await connection.query(
-      `SELECT id, title, test_name, delivery_date, prescription_id, created_at
+        // Step 5: Fetch shared reports (with prescription)
+        const reports = await connection.query(
+            `SELECT id, title, test_name, delivery_date, prescription_id, created_at
        FROM reports
        WHERE prescription_id = ANY($1::int[]) AND user_id = $2 AND shared = true AND deleted = false
        ORDER BY created_at DESC`,
-      [prescriptionIds, user_id]
-    );
+            [prescriptionIds, user_id]
+        );
 
-    const reportIds = reports.map(r => r.id);
+        const reportIds = reports.map(r => r.id);
 
-    const reportImages = await connection.query(
-      `SELECT report_id, id as report_img_id, resiged, thumb
+        const reportImages = await connection.query(
+            `SELECT report_id, id as report_img_id, resiged, thumb
        FROM report_images
        WHERE report_id = ANY($1::int[]) AND deleted = false
        ORDER BY created_at ASC`,
-      [reportIds]
-    );
+            [reportIds]
+        );
 
-    const reportImageMap = {};
-    for (const img of reportImages) {
-      if (!reportImageMap[img.report_id]) reportImageMap[img.report_id] = [];
-      reportImageMap[img.report_id].push(img);
-    }
+        const reportImageMap = {};
+        for (const img of reportImages) {
+            if (!reportImageMap[img.report_id]) reportImageMap[img.report_id] = [];
+            reportImageMap[img.report_id].push(img);
+        }
 
-    const reportsByPrescription = {};
-    for (const report of reports) {
-      report.images = reportImageMap[report.id] || [];
-      if (!reportsByPrescription[report.prescription_id]) {
-        reportsByPrescription[report.prescription_id] = [];
-      }
-      reportsByPrescription[report.prescription_id].push(report);
-    }
+        const reportsByPrescription = {};
+        for (const report of reports) {
+            report.images = reportImageMap[report.id] || [];
+            if (!reportsByPrescription[report.prescription_id]) {
+                reportsByPrescription[report.prescription_id] = [];
+            }
+            reportsByPrescription[report.prescription_id].push(report);
+        }
 
-    // Step 6: Combine reports into prescriptions
-    const combined = prescriptions.map(p => ({
-      ...p,
-      images: prescriptionImageMap[p.id] || [],
-      reports: reportsByPrescription[p.id] || []
-    }));
+        // Step 6: Combine reports into prescriptions
+        const combined = prescriptions.map(p => ({
+            ...p,
+            images: prescriptionImageMap[p.id] || [],
+            reports: reportsByPrescription[p.id] || []
+        }));
 
-    // Step 7: Standalone shared reports (no prescription_id)
-    const standaloneReports = await connection.query(
-      `SELECT id, title, test_name, delivery_date, created_at
+        // Step 7: Standalone shared reports (no prescription_id)
+        const standaloneReports = await connection.query(
+            `SELECT id, title, test_name, delivery_date, created_at
        FROM reports
        WHERE prescription_id IS NULL AND user_id = $1 AND shared = true AND deleted = false
        ORDER BY created_at DESC`,
-      [user_id]
-    );
+            [user_id]
+        );
 
-    const standaloneReportIds = standaloneReports.map(r => r.id);
+        const standaloneReportIds = standaloneReports.map(r => r.id);
 
-    const standaloneImages = await connection.query(
-      `SELECT report_id, id as report_img_id, resiged, thumb
+        const standaloneImages = await connection.query(
+            `SELECT report_id, id as report_img_id, resiged, thumb
        FROM report_images
        WHERE report_id = ANY($1::int[]) AND deleted = false
        ORDER BY created_at ASC`,
-      [standaloneReportIds]
-    );
+            [standaloneReportIds]
+        );
 
-    const standaloneImageMap = {};
-    for (const img of standaloneImages) {
-      if (!standaloneImageMap[img.report_id]) standaloneImageMap[img.report_id] = [];
-      standaloneImageMap[img.report_id].push(img);
+        const standaloneImageMap = {};
+        for (const img of standaloneImages) {
+            if (!standaloneImageMap[img.report_id]) standaloneImageMap[img.report_id] = [];
+            standaloneImageMap[img.report_id].push(img);
+        }
+
+        for (const report of standaloneReports) {
+            report.images = standaloneImageMap[report.id] || [];
+        }
+
+        // Step 8: Return everything
+        return res.status(200).json({
+            flag: 200,
+            accessToken: fileAccessToken,
+            prescriptions: combined,
+            standaloneReports,
+            message: 'Shared documents fetched successfully.'
+        });
+
+    } catch (error) {
+        console.error('Error in getSharedDocs:', error);
+        return res.status(500).json({ error: 'An unknown error occurred.' });
+    } finally {
+        await connection.release();
     }
-
-    for (const report of standaloneReports) {
-      report.images = standaloneImageMap[report.id] || [];
-    }
-
-    // Step 8: Return everything
-    return res.status(200).json({
-      flag: 200,
-      accessToken: fileAccessToken,
-      prescriptions: combined,
-      standaloneReports,
-      message: 'Shared documents fetched successfully.'
-    });
-
-  } catch (error) {
-    console.error('Error in getSharedDocs:', error);
-    return res.status(500).json({ error: 'An unknown error occurred.' });
-  } finally {
-    await connection.release();
-  }
 });
 
 
@@ -1014,87 +1044,87 @@ app.get('/getSharedDocs', async (req, res) => {
 
 app.post('/uploadProfile', upload.single('image'), async (req, res) => {
 
-  const connection = await database.getConnection(); // Get DB connection
-  try {
-    const { accessToken, member_id } = req.body;
- // Check if files are uploaded
-    if (!member_id) {
-      return res.status(400).json({ error: 'Missing field!' });
+    const connection = await database.getConnection(); // Get DB connection
+    try {
+        const { accessToken, member_id } = req.body;
+        // Check if files are uploaded
+        if (!member_id) {
+            return res.status(400).json({ error: 'Missing field!' });
+        }
+        if (!(Number.isInteger(+member_id) && +member_id > 0)) {
+            return res.status(400).json({ error: 'invalid type!' });
+
+        }
+        // Decode token and verify user existence
+        const { decodedToken, isExist } = await authintication(accessToken, member_id, connection);
+
+
+        // Check if files are uploaded
+        if (!req.file) {
+            return res.status(400).json({ error: 'No files uploaded.' });
+        }
+
+        await connection.beginTransaction(); // Start a transaction
+        const processedImages = await processImages([req.file], decodedToken.userId);
+        // const invalidImages = [];
+        const uploadFolder = path.join(__dirname, 'profiles');
+
+        await fs.mkdir(uploadFolder, { recursive: true });
+
+
+
+        const { color } = processedImages[0];
+
+
+        // Save color image for frontend
+        const colorPath = path.join(uploadFolder, color.filename);
+        await fs.writeFile(colorPath, color.buffer);
+
+        await connection.queryOne(
+            `UPDATE users SET profile_image_url = $1 WHERE user_id = $2`,
+            [`/profiles/${color.filename}`, member_id]
+        );
+
+
+        // Delete previous profile image if exists
+        if (isExist.profile_image_url) {
+            const previousPath = path.join(__dirname, isExist.profile_image_url);
+            try {
+                await fs.unlink(previousPath);
+            } catch (err) {
+                if (err.code !== 'ENOENT') {
+                    console.error('Failed to delete previous image:', err);
+                    throw new Error('Error deleting old profile image.');
+                }
+                // ENOENT means file doesn't exist, which is fine
+            }
+        }
+
+
+        await connection.commit(); // Commit transaction
+        res.status(200).json({ message: 'Profile pic uploaded successfully.' });
+    } catch (error) {
+
+        await connection.rollback();
+
+        if (error instanceof multer.MulterError) {
+
+
+            if (error.code === 'LIMIT_FILE_COUNT') {
+                return res.status(400).json({ error: 'You can only upload a maximum of 10 files.' });
+            } else if (error.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ error: 'File size exceeds the limit.' });
+            }
+        } else if (error.message === 'Access token is required.' || error.message === 'Invalid or expired access token.' || error.message === 'Invalid user.') {
+            return res.status(403).json({ error: error.message });
+        } else {
+            return res.status(500).json({ error: 'An unknown error occurred.' });
+        }
+
+        console.error('Error processing images:', error);
+    } finally {
+        await connection.release(); // Release DB connection
     }
-    if (!(Number.isInteger(+member_id) && +member_id > 0)) {
-      return res.status(400).json({ error: 'invalid type!' });
-
-    }
-    // Decode token and verify user existence
-   const {decodedToken,isExist}= await authintication(accessToken, member_id, connection);
-
-   
-    // Check if files are uploaded
-    if (!req.file) {
-      return res.status(400).json({ error: 'No files uploaded.' });
-    }
-
-    await connection.beginTransaction(); // Start a transaction
-    const processedImages = await processImages([req.file],decodedToken.userId);
-    // const invalidImages = [];
-    const uploadFolder = path.join(__dirname, 'profiles');
-
-    await fs.mkdir(uploadFolder, { recursive: true });
-
-
-
-      const {  color } = processedImages[0];
-
-  
-      // Save color image for frontend
-      const colorPath = path.join(uploadFolder, color.filename);
-      await fs.writeFile(colorPath, color.buffer);
-
-   await connection.queryOne(
-      `UPDATE users SET profile_image_url = $1 WHERE user_id = $2`,
-      [`/profiles/${color.filename}`, member_id]
-    );
-
-
-    // Delete previous profile image if exists
-if (isExist.profile_image_url) {
-  const previousPath = path.join(__dirname, isExist.profile_image_url);
-  try {
-    await fs.unlink(previousPath);
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      console.error('Failed to delete previous image:', err);
-      throw new Error('Error deleting old profile image.');
-    }
-    // ENOENT means file doesn't exist, which is fine
-  }
-}
-
-
-    await connection.commit(); // Commit transaction
-    res.status(200).json({ message: 'Profile pic uploaded successfully.' });
-  } catch (error) {
-
-    await connection.rollback();
-
-    if (error instanceof multer.MulterError) {
-
-    
-      if (error.code === 'LIMIT_FILE_COUNT') {
-        return res.status(400).json({ error: 'You can only upload a maximum of 10 files.' });
-      } else if (error.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File size exceeds the limit.' });
-      }
-    } else if (error.message === 'Access token is required.' || error.message === 'Invalid or expired access token.' || error.message === 'Invalid user.') {
-      return res.status(403).json({ error: error.message });
-    } else {
-      return res.status(500).json({ error: 'An unknown error occurred.' });
-    }
-
-    console.error('Error processing images:', error);
-  } finally {
-    await connection.release(); // Release DB connection
-  }
 });
 
 
@@ -1105,5 +1135,5 @@ if (isExist.profile_image_url) {
 
 
 app.listen(port, '0.0.0.0', () => {
-  console.log(`Server running on port ${port}`);
+    console.log(`Server running on port ${port}`);
 });
