@@ -528,9 +528,11 @@ app.post('/uploadReport', upload.array('image'), async (req, res) => {
         if (!member_id || !Number.isInteger(+member_id) || +member_id <= 0) {
             return res.status(400).json({ error: 'Invalid or missing member_id' });
         }
-        if (!title || typeof title !== 'string' || title.trim().length === 0) {
-            return res.status(400).json({ error: 'Missing or invalid report title' });
-        }
+     
+    // Validate required title
+    if (title !== undefined && (typeof title !== 'string' || title.trim().length === 0)) {
+      return res.status(400).json({ error: 'Invalid report title' });
+    }
 
         // Optional validations for report-specific fields
         if (test_name !== undefined && typeof test_name !== 'string') {
