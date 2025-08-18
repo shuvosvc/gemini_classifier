@@ -26,8 +26,11 @@ const cors = require('cors');
 app.use(cors());
 
 
-app.use('/uploads', authfilereq, express.static(path.join(__dirname, 'uploads')));
-app.use('/profiles', authfilereq, express.static(path.join(__dirname, 'profiles')));
+app.use('/uploads',  express.static(path.join(__dirname, 'uploads')));
+app.use('/profiles',  express.static(path.join(__dirname, 'profiles')));
+
+// app.use('/uploads', authfilereq, express.static(path.join(__dirname, 'uploads')));
+// app.use('/profiles', authfilereq, express.static(path.join(__dirname, 'profiles')));
 
 
 app.get("/", (_, res) => {
