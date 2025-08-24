@@ -19,6 +19,7 @@ const app = express();
 
 
 const cors = require('cors');
+const { userInfo } = require('os');
 
 
 
@@ -26,11 +27,11 @@ const cors = require('cors');
 app.use(cors());
 
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-app.use('/profiles', express.static(path.join(__dirname, 'profiles')));
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// app.use('/profiles', express.static(path.join(__dirname, 'profiles')));
 
-// app.use('/uploads', authfilereq, express.static(path.join(__dirname, 'uploads')));
-// app.use('/profiles', authfilereq, express.static(path.join(__dirname, 'profiles')));
+app.use('/uploads', authfilereq, express.static(path.join(__dirname, 'uploads')));
+app.use('/profiles', authfilereq, express.static(path.join(__dirname, 'profiles')));
 
 
 app.get("/", (_, res) => {
@@ -916,6 +917,19 @@ app.get('/getSharedDocs', async (req, res) => {
             return res.status(403).json({ error: 'Token has expired' });
         }
 
+
+           const member = await connection.queryOne(
+      `SELECT user_id,  first_name, last_name, phone, email, gender, blood_group, birthday, profile_image_url, address, chronic_disease,pinned
+       FROM users
+       WHERE user_id = $1  and deleted = false`,
+      [user_id]
+    );
+
+    if (!member) {
+      throw new errors.UNAUTHORIZED("User not found !");
+    }
+
+
         // Step 2: Generate JWT for file access
         const fileAccessToken = jwt.sign({ userId: user_id }, jwtSecret, {
             expiresIn: expiresInSeconds
@@ -949,7 +963,7 @@ app.get('/getSharedDocs', async (req, res) => {
 
         // Step 5: Fetch shared reports (with prescription)
         const reports = await connection.query(
-            `SELECT id, title, test_name, delivery_date, prescription_id, created_at
+            `SELECT id, title, test_name, delivery_date,normal_or_not, prescription_id, created_at
        FROM reports
        WHERE prescription_id = ANY($1::int[]) AND user_id = $2 AND shared = true AND deleted = false
        ORDER BY created_at DESC`,
@@ -990,7 +1004,7 @@ app.get('/getSharedDocs', async (req, res) => {
 
         // Step 7: Standalone shared reports (no prescription_id)
         const standaloneReports = await connection.query(
-            `SELECT id, title, test_name, delivery_date, created_at
+            `SELECT id, title, test_name, delivery_date,normal_or_not, created_at
        FROM reports
        WHERE prescription_id IS NULL AND user_id = $1 AND shared = true AND deleted = false
        ORDER BY created_at DESC`,
@@ -1017,10 +1031,43 @@ app.get('/getSharedDocs', async (req, res) => {
             report.images = standaloneImageMap[report.id] || [];
         }
 
-        // Step 8: Return everything
+
+        // Step 8: featch health matrix
+
+        // Fetch latest record from each table
+        const [latestWeight] = await connection.query(
+            `SELECT id, weight, created_at FROM weights WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+        const [latestBP] = await connection.query(
+            `SELECT id, systolic, diastolic, created_at FROM blood_pressures WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+        const [latestSugar] = await connection.query(
+            `SELECT id, sugar_level, created_at FROM sugar_levels WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+        const [latestO2] = await connection.query(
+            `SELECT id, o2_level, created_at FROM oxygen_levels WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`,
+            [user_id]
+        );
+
+
+
+        // Step 9: Return everything
         return res.status(200).json({
             flag: 200,
             accessToken: fileAccessToken,
+            userInfo:member,
+            overview: {
+                weight: latestWeight || null,
+                blood_pressure: latestBP || null,
+                sugar_level: latestSugar || null,
+                o2_level: latestO2 || null
+            },
             prescriptions: combined,
             standaloneReports,
             message: 'Shared documents fetched successfully.'
