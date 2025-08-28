@@ -126,44 +126,86 @@ const processImages = async (files, userId) => {
 // RENAMED for clarity and unification
 const classifyDocumentAndExtractData = async (imageBuffer, mimeType) => {
     try {
-        const prompt = `Analyze the uploaded image and classify its primary document type. If it's a medical document, extract relevant information.
 
-        **Document Types:**
-        1.  **"prescription":** A written order from a doctor or healthcare professional for a patient to receive specific medication, treatment, or medical device. Key features usually include patient's name, doctor's name/signature, date, medication details (name, dosage, instructions), clinic/hospital info.
-        2.  **"report":** A medical test result or diagnostic report (e.g., blood test, urine test, X-ray report, MRI report, pathology report). Key features usually include patient's name, test name, result values, reference ranges, reporting date.
-        3.  **"other":** Any other document, medical or non-medical, that does not fit the "prescription" or "report" categories (e.g., bill, insurance document, discharge summary, appointment slip, personal photo).
+        // const prompt = `Analyze the uploaded image and classify its primary document type. If it's a medical document, extract relevant information.
 
-        **For "prescription" type, extract:**
-        -   **documentType:** "prescription"
-        -   **department:** Medical department (string | null). Infer if not explicit.
-        -   **doctor_name:** Full name of the prescribing doctor (string | null).
-        -   **visited_date:** Date of visit/issue (YYYY-MM-DD | null).
+        // **Document Types:**
+        // 1.  **"prescription":** A written order from a doctor or healthcare professional for a patient to receive specific medication, treatment, or medical device. Key features usually include patient's name, doctor's name/signature, date, medication details (name, dosage, instructions), clinic/hospital info.
+        // 2.  **"report":** A medical test result or diagnostic report (e.g., blood test, urine test, X-ray report, MRI report, pathology report). Key features usually include patient's name, test name, result values, reference ranges, reporting date.
+        // 3.  **"other":** Any other document, medical or non-medical, that does not fit the "prescription" or "report" categories (e.g., bill, insurance document, discharge summary, appointment slip, personal photo).
 
-        **For "report" type, extract:**
-        -   **documentType:** "report"
-        -   **test_name:** The primary name of the test or type of report (string | null, e.g., "Complete Blood Count", "Blood Glucose", "X-Ray Chest").
-        -   **deliveryDate:** The date the report was issued or delivered (YYYY-MM-DD | null).
-        -   **normal_or_not:** Determine if the *overall* findings or *key results* of the report are within normal limits based on the provided reference ranges. Return "Normal", "Abnormal", or "Not Applicable" (e.g., for X-rays where numerical ranges aren't typical, or if determination is ambiguous).
+        // **For "prescription" type, extract:**
+        // -   **documentType:** "prescription"
+        // -   **department:** Medical department (string | null). Infer if not explicit.
+        // -   **doctor_name:** Full name of the prescribing doctor (string | null).
+        // -   **visited_date:** Date of visit/issue (YYYY-MM-DD | null).
 
-        **For "other" type:**
-        -   **documentType:** "other"
-        -   All other fields should be null.
+        // **For "report" type, extract:**
+        // -   **documentType:** "report"
+        // -   **test_name:** The primary name of the test or type of report (string | null, e.g., "Complete Blood Count", "Blood Glucose", "X-Ray Chest").
+        // -   **deliveryDate:** The date the report was issued or delivered (YYYY-MM-DD | null).
+        // -   **normal_or_not:** Determine if the *overall* findings or *key results* of the report are within normal limits based on the provided reference ranges. Return "Normal", "Abnormal", or "Not Applicable" (e.g., for X-rays where numerical ranges aren't typical, or if determination is ambiguous).
 
-        Return the output as a JSON object with the following structure:
-        {
-          "documentType": "prescription" | "report" | "other",
-          "extractedData": {
-            "department": string | null,
-            "doctor_name": string | null,
-            "visited_date": string | null,
-            "test_name": string | null,
-            "deliveryDate": string | null,
-            "normal_or_not": "Normal" | "Abnormal" | "Not Applicable" | null
-          },
-          "reason": string | null // Optional: A brief reason if "other", or "classified as [type]"
-        }
-        `;
+        // **For "other" type:**
+        // -   **documentType:** "other"
+        // -   All other fields should be null.
 
+        // Return the output as a JSON object with the following structure:
+        // {
+        //   "documentType": "prescription" | "report" | "other",
+        //   "extractedData": {
+        //     "department": string | null,
+        //     "doctor_name": string | null,
+        //     "visited_date": string | null,
+        //     "test_name": string | null,
+        //     "deliveryDate": string | null,
+        //     "normal_or_not": "Normal" | "Abnormal" | "Not Applicable" | null
+        //   },
+        //   "reason": string | null // Optional: A brief reason if "other", or "classified as [type]"
+        // }
+        // `;
+
+const prompt = `Analyze the uploaded image and classify its primary document type. If it's a medical document, extract relevant information.
+
+**Document Types:**
+1. **"prescription":** A written order from a doctor or healthcare professional for a patient to receive specific medication, treatment, or medical device. Key features usually include patient's name, doctor's name/signature, date, medication details (name, dosage, instructions), clinic/hospital info.
+2. **"report":** A medical test result or diagnostic report (e.g., blood test, urine test, X-ray report, MRI report, pathology report). Key features usually include patient's name, test name, result values, reference ranges, reporting date.
+3. **"other":** Any other document, medical or non-medical, that does not fit the "prescription" or "report" categories (e.g., bill, insurance document, discharge summary, appointment slip, personal photo).
+
+**For "prescription" type, extract:**
+- **documentType:** "prescription"
+- **department:** Medical department (string | null). Infer if not explicit.
+- **doctor_name:** Full name of the prescribing doctor (string | null).
+- **visited_date:** Date of visit/issue in strict **YYYY-MM-DD** format. If the date is incomplete, unclear, or invalid (e.g., "202X-12-02"), return **null**.
+
+**For "report" type, extract:**
+- **documentType:** "report"
+- **test_name:** The primary name of the test or type of report (string | null, e.g., "Complete Blood Count", "Blood Glucose", "X-Ray Chest").
+- **deliveryDate:** Report issue/delivery date in strict **YYYY-MM-DD** format. If the date cannot be confidently parsed into a valid ISO date, return **null**.
+- **normal_or_not:** Overall findings based on reference ranges. Must be exactly one of: "Normal", "Abnormal", or "Not Applicable". If unclear, use "Not Applicable".
+
+**For "other" type:**
+- **documentType:** "other"
+- All other fields should be null.
+
+⚠️ **Strict Formatting Rules:**
+- Dates **must** be valid ISO format: "YYYY-MM-DD". No placeholders, no fuzzy years, no text.
+- If unsure or incomplete, return **null** instead of guessing.
+- Strings must not contain leading/trailing whitespace.
+
+Return the output as a JSON object in the following structure:
+{
+  "documentType": "prescription" | "report" | "other",
+  "extractedData": {
+    "department": string | null,
+    "doctor_name": string | null,
+    "visited_date": string | null,
+    "test_name": string | null,
+    "deliveryDate": string | null,
+    "normal_or_not": "Normal" | "Abnormal" | "Not Applicable" | null
+  },
+  "reason": string | null
+}`;
 
 
         const contents = [{
